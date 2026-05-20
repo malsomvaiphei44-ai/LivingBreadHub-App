@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'malsomvaiphei44@gmail.com';
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 1. Users Profile Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && 
+                            incoming().email is string && 
+                            incoming().name is string;
+      allow delete: if isAdmin();
+    }
+
+    // 2. Sermons Feed Collection
+    match /sermons/{sermonId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 3. Songs Hymns Collection
+    match /songs/{songId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 4. Shorts Reels Collection
+    match /shorts/{shortId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 5. Prayers Requests Collection
+    match /prayers/{prayerId} {
+      allow read: if !resource.data.isPrivate || 
+                  (isSignedIn() && (resource.data.userEmail == request.auth.token.email || isAdmin()));
+      allow create: if isSignedIn() &&
+                    incoming().request is string &&
+                    incoming().request.size() <= 5000 &&
+                    incoming().userName is string;
+      allow update: if isSignedIn() && (
+        // Allow anyone to increment amenCount and attach email
+        (incoming().diff(existing()).affectedKeys().hasAny(['amenCount', 'amens'])) ||
+        // Allow the creator or an admin to edit/delete/update everything
+        (existing().userEmail == request.auth.token.email || isAdmin())
+      );
+      allow delete: if isSignedIn() && (resource.data.userEmail == request.auth.token.email || isAdmin());
+    }
+
+    // 6. Devotionals Collection
+    match /devotionals/{devotionalId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

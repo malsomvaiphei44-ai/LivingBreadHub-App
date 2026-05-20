@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile with bookmarks and history",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "Email address of the user" },
+        "name": { "type": "string", "description": "Display name of the user" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User access level" },
+        "favorites": {
+          "type": "object",
+          "properties": {
+            "verses": { "type": "array" },
+            "songs": { "type": "array" },
+            "sermons": { "type": "array" }
+          }
+        },
+        "listeningHistory": { "type": "array" }
+      },
+      "required": ["email", "name", "role", "favorites"]
+    },
+    "Sermon": {
+      "title": "Sermon",
+      "description": "Pastor preachings and gospel videos",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "pastor": { "type": "string" },
+        "category": { "type": "string" },
+        "duration": { "type": "string" },
+        "youtubeId": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "views": { "type": "integer" },
+        "date": { "type": "string" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["title", "pastor", "category", "youtubeId", "thumbnailUrl", "views", "date"]
+    },
+    "Song": {
+      "title": "Worship Song",
+      "description": "Worship songs or acoustic tracks",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "album": { "type": "string" },
+        "duration": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "coverUrl": { "type": "string" },
+        "plays": { "type": "integer" },
+        "category": { "type": "string" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["title", "artist", "album", "duration", "audioUrl", "coverUrl", "plays"]
+    },
+    "ShortReel": {
+      "title": "Inspire Reel",
+      "description": "Vertical short clips or motivational preachings",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "speaker": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "caption": { "type": "string" },
+        "likes": { "type": "integer" },
+        "shares": { "type": "integer" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["title", "speaker", "videoUrl", "caption", "likes", "shares"]
+    },
+    "PrayerRequest": {
+      "title": "Prayer Request",
+      "description": "Community prayers, petitions, and count of amens",
+      "type": "object",
+      "properties": {
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "request": { "type": "string" },
+        "isPrivate": { "type": "boolean" },
+        "amenCount": { "type": "integer" },
+        "createdAt": { "type": "string" },
+        "amens": { "type": "array" }
+      },
+      "required": ["userEmail", "userName", "request", "isPrivate", "amenCount", "createdAt"]
+    },
+    "Devotional": {
+      "title": "Daily Devotional",
+      "description": "Daily devotional message written by pastors",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "bibleReadings": { "type": "array" },
+        "content": { "type": "string" },
+        "reflection": { "type": "string" },
+        "author": { "type": "string" },
+        "prayer": { "type": "string" }
+      },
+      "required": ["title", "date", "content", "reflection", "author"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of authentic user profiles"
+    },
+    "/sermons/{sermonId}": {
+      "schema": "Sermon",
+      "description": "Table of available sermons"
+    },
+    "/songs/{songId}": {
+      "schema": "Song",
+      "description": "Table of worship songs"
+    },
+    "/shorts/{shortId}": {
+      "schema": "ShortReel",
+      "description": "Short vertical videos and social clips"
+    },
+    "/prayers/{prayerId}": {
+      "schema": "PrayerRequest",
+      "description": "Public and private community petitions"
+    },
+    "/devotionals/{devotionalId}": {
+      "schema": "Devotional",
+      "description": "Chronological pastors writings"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "LivingBreadHub",
+  "description": "A premium modern Christian platform offering devotionals, Bible verses, gospel music, sermonic streaming, shorts, community prayers, and an AI Bible assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
