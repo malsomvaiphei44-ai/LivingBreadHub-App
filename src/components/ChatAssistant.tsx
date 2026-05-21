@@ -84,9 +84,9 @@ if (response.ok) {
       isWarning: !!data.warning,
     },
   ]);
-} catch (error) {
-  console.error(error);
-    }
+
+  
+    
   
 
       
@@ -111,8 +111,8 @@ if (response.ok) {
       
       
       
-    } catch (err) {
-      console.error(err);
+    
+  
       setMessages(prev => [
         ...prev,
         {
