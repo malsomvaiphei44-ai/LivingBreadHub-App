@@ -38,12 +38,15 @@ export const ChatAssistant: React.FC = () => {
     setChatLoading(true);
 
     try {
-      const response = await fetch("/api/ai/chat", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           // Pass full chat history for conversation flow
-          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
+          messages: updatedMessages.map(m => ({
+  role: m.role,
+  content: m.content
+}))> ({ role: m.role, content: m.content }))
         })
       });
 
