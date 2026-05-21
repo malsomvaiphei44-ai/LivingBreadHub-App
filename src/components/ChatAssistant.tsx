@@ -120,9 +120,9 @@ if (response.ok) {
           content: "I am currently reflecting quietly on the Word. In moments of heavy burdens, remember: 'Cast your cares on the Lord and He will sustain you.' (Psalm 55:22). Rest in His presence."
         }
       ]);
-    } finally {
-      setChatLoading(false);
-    }
+    
+      
+  
   };
 
   // Split message to format **bold** words nicely
