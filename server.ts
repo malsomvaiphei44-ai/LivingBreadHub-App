@@ -664,7 +664,49 @@ async function startServer() {
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
-  }
+  }function startServer() {
+
+  // Vite setup
+  app.use(vite.middlewares);
+
+  // static files
+  app.use(express.static(distPath));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+
+  // ✅ PASTE THIS HERE
+  app.use(express.json());
+
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const message = req.body?.message;
+
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+      });
+
+      const result = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: message,
+      });
+
+      const reply =
+        result?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "🙏 No response";
+
+      res.json({ reply });
+    } catch (error) {
+      res.status(500).json({ reply: "Server error 🙏" });
+    }
+  });
+
+  // ❌ DO NOT TOUCH THIS
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log("Server running");
+  });
+}
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[LivingBreadHub Full-Stack API] Server running on http://localhost:${PORT}`);
