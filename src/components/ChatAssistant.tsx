@@ -71,7 +71,7 @@ export const ChatAssistant: React.FC = () => {
 
   if (!response.ok) {
     throw new Error("Chat response failed");
-  }
+  }const data = await response.json();
 
   
 
