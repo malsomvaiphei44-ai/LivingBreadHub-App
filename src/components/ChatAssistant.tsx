@@ -57,9 +57,37 @@ if (response.ok) {
       role: "model",
       content: data.reply,
       isWarning: !!data.warning,
+    try {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: updatedMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Chat response failed");
+  }
+
+  const data = await response.json();
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      role: "model",
+      content: data.reply,
+      isWarning: !!data.warning,
     },
   ]);
-}
+} catch (error) {
+  console.error(error);
+    }
+  
+
       
         
         
@@ -79,9 +107,9 @@ if (response.ok) {
           
           
         
-      } else {
-        throw new Error("Chat response failed");
-      }
+      
+      
+      
     } catch (err) {
       console.error(err);
       setMessages(prev => [
