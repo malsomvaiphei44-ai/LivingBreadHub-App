@@ -57,7 +57,8 @@ if (response.ok) {
       role: "model",
       content: data.reply,
       isWarning: !!data.warning,
-    try {
+    },
+]);
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
