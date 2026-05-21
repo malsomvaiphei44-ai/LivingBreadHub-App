@@ -1,20 +1,18 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Living Bread Hub AI App
 
-# Run and deploy your AI Studio app
+This app is a Christian AI Pastor app with:
 
-This contains everything you need to run your app locally.
+- AI Chatbot (Gemini powered)
+- Bible Verse System
+- Music Worship section
 
-View your app in AI Studio: https://ai.studio/apps/ba747708-ca75-4217-b8f0-280c593b2262
+## API Route
 
-## Run Locally
+/ api/chat.js (backend AI function)
 
-**Prerequisites:**  Node.js
+## Features Coming
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- Voice AI Pastor
+- Daily Verse
+- Music Player
+- Login System
