@@ -52,6 +52,7 @@ export interface Song {
   coverUrl: string;
   plays: number;
   category?: string;
+  youtubeUrl?: string;
 }
 
 export interface ShortReel {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { 
   Play, 
@@ -12,8 +12,23 @@ import {
   Square,
   Sparkles,
   ChevronUp,
-  X
+  X,
+  Tv
 } from "lucide-react";
+
+// Helper to extract safe, valid YouTube video ID from any format
+const getYouTubeId = (url: string): string => {
+  if (!url) return "";
+  if (url.includes("search_query=") || url.includes("results?")) {
+    // If it's a dynamic search result with a query string, fallback to an epic worship song (Oceans)
+    return "6Gg6_6GqSgM";
+  }
+  if (url.length === 11) return url;
+  
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? match[2] : url;
+};
 
 export const BottomPlayer: React.FC = () => {
   const {
@@ -35,10 +50,35 @@ export const BottomPlayer: React.FC = () => {
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [prevVolume, setPrevVolume] = useState(0.8);
+  
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   if (!currentSong) return null;
 
   const isFav = user?.favorites.songs.includes(currentSong.id) || false;
+  
+  const videoId = getYouTubeId(currentSong.youtubeUrl || "");
+
+  // Synchronize playing states with the YouTube IFrame
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    
+    const command = isPlaying ? "playVideo" : "pauseVideo";
+    iframeRef.current.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func: command, args: [] }),
+      "*"
+    );
+  }, [isPlaying, videoId]);
+
+  // Synchronize volume level updates with the YouTube IFrame
+  useEffect(() => {
+    if (!iframeRef.current || volume === undefined) return;
+    
+    iframeRef.current.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func: "setVolume", args: [volume * 100] }),
+      "*"
+    );
+  }, [volume, videoId]);
 
   // Helper to format raw seconds to standard MM:SS
   const formatTime = (seconds: number) => {
@@ -60,12 +100,12 @@ export const BottomPlayer: React.FC = () => {
   return (
     <div 
       id="floating-audio-orchestrator" 
-      className="fixed bottom-16 md:bottom-3 left-0 right-0 z-50 px-3 pb-3 md:pb-1"
+      className="fixed bottom-16 md:bottom-3 left-0 right-0 z-50 px-3 pb-3 md:pb-1 animate-fadeIn"
     >
       <div className="max-w-4xl mx-auto glass-panel bg-zinc-950/95 text-white rounded-3xl shadow-2xl p-4 border border-zinc-800/85 transition-all duration-300 relative overflow-hidden">
         {/* Subtle running background glow matching the play state */}
         {isPlaying && (
-          <div className="absolute inset-0 bg-radial from-emerald-500/5 via-transparent to-transparent pointer-events-none animate-pulse" />
+          <div className="absolute inset-0 bg-radial from-amber-500/5 via-transparent to-transparent pointer-events-none animate-pulse" />
         )}
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -73,32 +113,39 @@ export const BottomPlayer: React.FC = () => {
           {/* Song info and details */}
           <div className="flex items-center justify-between md:justify-start gap-3 min-w-0">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="relative group w-12 h-12 rounded-2xl overflow-hidden bg-zinc-900 shrink-0 border border-zinc-800/80">
+              <div 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="relative group w-12 h-12 rounded-2xl overflow-hidden bg-zinc-900 shrink-0 border border-zinc-805 cursor-pointer hover:border-amber-500/50 transition-colors"
+                title="Expand Visual Praise View"
+              >
                 <img
                   src={currentSong.coverUrl}
                   alt={currentSong.title}
                   className={`w-full h-full object-cover transition-transform duration-500 ${isPlaying ? "animate-[spin_12s_linear_infinite]" : ""}`}
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+                <div className="absolute inset-0 bg-black/35 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Tv className="w-4 h-4 text-amber-400" />
                 </div>
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs md:text-sm font-bold truncate text-zinc-100 font-sans tracking-tight">
-                  {currentSong.title}
-                </h4>
+                <div className="flex items-center gap-1">
+                  <h4 className="text-xs md:text-sm font-bold truncate text-zinc-100 font-sans tracking-tight">
+                    {currentSong.title}
+                  </h4>
+                  <span className="text-[8px] bg-red-500/15 border border-red-500/20 text-red-400 font-mono font-black scale-90 px-1 py-0.5 rounded uppercase font-bold tracking-tight">Real Audio</span>
+                </div>
                 <p className="text-[10px] md:text-xs text-zinc-400 truncate font-sans">
-                  {currentSong.artist} • <span className="text-emerald-400 italic text-[10px]">{currentSong.album}</span>
+                  {currentSong.artist} • <span className="text-amber-400 italic text-[10px]">{currentSong.album}</span>
                 </p>
               </div>
             </div>
 
-            {/* Quick action buttons on right side during compact mobile layouts */}
+            {/* Quick play buttons on mobile layouts */}
             <div className="flex items-center gap-1.5 md:hidden">
               <button
                 onClick={isPlaying ? pauseSong : resumeSong}
-                className="w-8.5 h-8.5 rounded-full bg-emerald-500 text-zinc-950 flex items-center justify-center transition active:scale-95 shadow"
+                className="w-8.5 h-8.5 rounded-full bg-amber-500 text-zinc-950 flex items-center justify-center transition active:scale-95 shadow"
               >
                 {isPlaying ? <Pause className="w-4 h-4 text-zinc-950 fill-current" /> : <Play className="w-4 h-4 text-zinc-950 fill-current ml-0.5" />}
               </button>
@@ -111,9 +158,26 @@ export const BottomPlayer: React.FC = () => {
             </div>
           </div>
 
-          {/* Interactive media controls (hidden on mobile unless expanded, always visible on desktop) */}
+          {/* Interactive media controls */}
           <div className={`flex-1 flex flex-col items-center gap-2 max-w-xl ${isExpanded ? "flex" : "hidden md:flex"}`}>
             
+            {/* Real responsive cross-origin YouTube iframe */}
+            <div className={isExpanded 
+              ? "w-full max-w-sm aspect-video rounded-2xl overflow-hidden bg-black border border-zinc-850 shadow-xl relative z-10 mx-auto animate-fadeIn mb-2 mt-1" 
+              : "w-0 h-0 absolute opacity-0 pointer-events-none overflow-hidden"
+            }>
+              {videoId && (
+                <iframe
+                  ref={iframeRef}
+                  src={`https://www.youtube.com/embed/${videoId}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&rel=0&mute=0`}
+                  title={currentSong.title}
+                  className="w-full h-full object-cover"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              )}
+            </div>
+
             {/* Control buttons block */}
             <div className="flex items-center gap-4.5">
               <button
@@ -134,7 +198,7 @@ export const BottomPlayer: React.FC = () => {
 
               <button
                 onClick={isPlaying ? pauseSong : resumeSong}
-                className="w-10 h-10 rounded-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 flex items-center justify-center transition active:scale-95 shadow-md hover:shadow-emerald-500/20"
+                className="w-10 h-10 rounded-full bg-amber-500 hover:bg-amber-400 text-zinc-950 flex items-center justify-center transition active:scale-95 shadow-md"
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? (
@@ -173,12 +237,21 @@ export const BottomPlayer: React.FC = () => {
                   min={0}
                   max={duration || 100}
                   value={currentTime}
-                  onChange={(e) => seek(Number(e.target.value))}
-                  className="w-full accent-emerald-500 h-1 bg-zinc-800 rounded-full cursor-pointer appearance-none outline-none focus:outline-none"
+                  onChange={(e) => {
+                    const secs = Number(e.target.value);
+                    seek(secs);
+                    if (iframeRef.current) {
+                      iframeRef.current.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func: "seekTo", args: [secs, true] }),
+                        "*"
+                      );
+                    }
+                  }}
+                  className="w-full accent-amber-500 h-1 bg-zinc-800 rounded-full cursor-pointer appearance-none outline-none focus:outline-none"
                 />
                 {/* Visual completion tracking fill */}
                 <div 
-                  className="absolute h-1 bg-emerald-400 rounded-full pointer-events-none left-0"
+                  className="absolute h-1 bg-amber-400 rounded-full pointer-events-none left-0"
                   style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
                 />
               </div>
@@ -189,7 +262,7 @@ export const BottomPlayer: React.FC = () => {
             </div>
           </div>
 
-          {/* Interactive Right Volume Deck (hidden on mobile unless expanded, always visible on desktop) */}
+          {/* Interactive Right Volume Deck */}
           <div className={`items-center gap-3.5 shrink-0 ${isExpanded ? "flex justify-between w-full border-t border-zinc-900 pt-3 md:border-0 md:pt-0 md:w-auto" : "hidden md:flex"}`}>
             <div className="flex items-center gap-2">
               <button
@@ -197,7 +270,7 @@ export const BottomPlayer: React.FC = () => {
                 className="text-zinc-500 hover:text-zinc-300 transition"
                 title={volume === 0 ? "Unmute" : "Mute"}
               >
-                {volume === 0 ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                {volume === 0 ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
               </button>
               
               <div className="relative flex items-center w-20">
@@ -208,17 +281,17 @@ export const BottomPlayer: React.FC = () => {
                   step={0.01}
                   value={volume}
                   onChange={(e) => changeVolume(Number(e.target.value))}
-                  className="w-full accent-emerald-500 h-1 bg-zinc-850 rounded-full cursor-pointer appearance-none outline-none focus:outline-none"
+                  className="w-full accent-amber-500 h-1 bg-zinc-850 rounded-full cursor-pointer appearance-none outline-none focus:outline-none"
                 />
                 <div 
-                  className="absolute h-1 bg-emerald-400 rounded-full pointer-events-none left-0"
+                  className="absolute h-1 bg-amber-400 rounded-full pointer-events-none left-0"
                   style={{ width: `${volume * 100}%` }}
                 />
               </div>
             </div>
 
-            <span className="text-[9px] uppercase font-mono tracking-widest text-emerald-400/80 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/15">
-              Stereo Manna
+            <span className="text-[9px] uppercase font-mono tracking-widest text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/15">
+              Stereo Praise
             </span>
           </div>
 

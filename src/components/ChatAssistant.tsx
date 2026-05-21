@@ -74,6 +74,17 @@ export const ChatAssistant: React.FC = () => {
     }
   };
 
+  // Split message to format **bold** words nicely
+  const formatMsg = (txt: string) => {
+    const parts = txt.split(/\*\*([^*]+)\*\*/g);
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i} className="font-semibold text-amber-300">{part}</strong>;
+      }
+      return part;
+    });
+  };
+
   return (
     <div id="ai-chat-assistant-container" className="flex flex-col h-[580px] bg-zinc-950 rounded-3xl border border-zinc-800/80 overflow-hidden relative shadow-2xl">
       {/* Glow highlight */}
@@ -120,7 +131,7 @@ export const ChatAssistant: React.FC = () => {
             }`}>
               {/* Dynamic rendering */}
               <div className="whitespace-pre-line prose prose-invert prose-xs">
-                {m.content}
+                {formatMsg(m.content)}
               </div>
 
               {m.isWarning && (
@@ -137,9 +148,13 @@ export const ChatAssistant: React.FC = () => {
         ))}
 
         {chatLoading && (
-          <div className="flex items-center gap-2 text-zinc-400 text-xs py-2">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-            <span>AI is searching and meditating on scriptures...</span>
+          <div className="flex items-center gap-3 text-zinc-400 text-xs py-2">
+            <div className="flex gap-1 items-center bg-zinc-900/80 border border-zinc-800 px-3.5 py-2.5 rounded-full rounded-tl-none">
+              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce"></span>
+            </div>
+            <span className="text-[11px] font-mono animate-pulse text-zinc-500">AI is praying over scriptures...</span>
           </div>
         )}
         <div ref={bottomRef} />

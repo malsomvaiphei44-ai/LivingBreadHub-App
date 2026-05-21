@@ -26,6 +26,9 @@ import {
   Share2,
   Send,
   Sliders,
+  ZoomIn,
+  RefreshCw,
+  ExternalLink,
   LogOut,
   ChevronRight,
   PlusCircle,
@@ -74,6 +77,47 @@ export default function App() {
 
   // Active Switching Page Navigation including law compliance and support terms
   const [currentPage, setCurrentPage] = useState<"home" | "bible" | "sermons" | "music" | "shorts" | "prayers" | "assistant" | "profile" | "admin" | "about" | "contact" | "privacy" | "terms">("home");
+
+  // Screen Zoom / Accessibility Feature Scale (1.0 = Normal, 1.15 = Large, 1.30 = Extra Large, 1.40 = Magnified / Max)
+  const [fontScale, setFontScale] = useState<number>(() => {
+    const saved = localStorage.getItem("living_bread_font_scale_2026");
+    return saved ? parseFloat(saved) : 1.0;
+  });
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontScale * 100}%`;
+    localStorage.setItem("living_bread_font_scale_2026", fontScale.toString());
+  }, [fontScale]);
+
+  // Spotify Praise Stream search states (renamed conceptually to YouTube Worship Studio)
+  const [spotifySearchResults, setSpotifySearchResults] = useState<any[] | null>(null);
+  const [isSearchingSpotify, setIsSearchingSpotify] = useState(false);
+  const [spotifySearchError, setSpotifySearchError] = useState<string | null>(null);
+
+  const handleSpotifySearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!musicSearch.trim()) {
+      setSpotifySearchResults(null);
+      return;
+    }
+    setIsSearchingSpotify(true);
+    setSpotifySearchError(null);
+    try {
+      const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(musicSearch)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSpotifySearchResults(data);
+      } else {
+        throw new Error("Could not find matching YouTube worship tracks.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setSpotifySearchError("Failed to fetch worship tracks. Please try again.");
+      setSpotifySearchResults([]);
+    } finally {
+      setIsSearchingSpotify(false);
+    }
+  };
 
   // Track Daily Verse view interactions dynamically
   useEffect(() => {
@@ -369,6 +413,24 @@ export default function App() {
               🌐 {currentLang === "EN" ? "ENGLISH" : currentLang === "HI" ? "हिन्दी" : "NAGAMESE"}
             </button>
 
+            {/* Screen Zoom Accessibility Button */}
+            <button
+              id="btn-accessibility-zoom"
+              onClick={() => {
+                setFontScale(prev => {
+                  if (prev === 1.0) return 1.15;
+                  if (prev === 1.15) return 1.30;
+                  if (prev === 1.30) return 1.40;
+                  return 1.0;
+                });
+              }}
+              className="text-[10px] tracking-widest font-bold font-mono border border-zinc-800/80 rounded-lg px-2 py-1 text-zinc-400 hover:text-amber-400 transition-colors flex items-center gap-1.5"
+              title="Enhance layout zoom for readability"
+            >
+              <ZoomIn className="w-3.5 h-3.5 text-amber-500/80" />
+              <span>ZOOM: {Math.round(fontScale * 100)}%</span>
+            </button>
+
             {/* Admin Console Route button visible if user role === 'admin' or has admin in email */}
             {(user.role === "admin" || user.email.includes("admin")) && (
               <button
@@ -415,42 +477,44 @@ export default function App() {
         {/* 1. HOME SCREEN VIEW */}
         {currentPage === "home" && (
           <div className="space-y-6">
-            {/* Elevation Church andspotify hybrid styled welcome hero banner */}
+            {/* Elevation Church and spotify hybrid styled welcome hero banner */}
             <section className="relative overflow-hidden rounded-3xl p-6 md:p-8 bg-zinc-900 text-white border border-zinc-800 shadow-2xl">
               {/* Abs gradients */}
               <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-500/15 to-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
               
-              <div className="relative z-10 max-w-xl">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] tracking-widest font-mono px-2 py-0.5 rounded-full font-bold">
+              <div className="relative z-10 max-w-xl space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] tracking-widest font-mono px-2.5 py-0.5 rounded-full font-bold">
                     {t.dailyDevotionalSection.toUpperCase()}
                   </span>
-                  <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                  <span className="text-[10px] text-zinc-500 flex items-center gap-1 bg-zinc-950/40 px-2 py-0.5 rounded-full border border-zinc-900">
                     <Flame className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
-                    May 20, 2026
+                    <span>Day {new Date().getDate()} of Month</span>
                   </span>
                 </div>
                 
-                <h1 className="text-2xl md:text-3xl font-display font-black text-zinc-100 tracking-tight leading-none mb-3">
-                  Welcome to LivingBreadHub — <span className="text-amber-300 block text-lg md:text-xl font-normal mt-1 leading-snug">{t.welcomeSubtitle}</span>
-                </h1>
-                
-                <p className="text-xs md:text-sm text-zinc-350 leading-relaxed max-w-md">
-                  "{devotionals[0]?.title || "Streams of Selah: Overcoming Daily Waves of Anxiety"}"
-                </p>
-
-                {/* Micro Devotional Snippet inline */}
-                <div className="my-4 bg-zinc-950/60 p-4 rounded-2xl border border-zinc-800/80 text-xs text-zinc-400 italic">
-                  "{devotionals[0]?.content.substring(0, 160) || "In a world of constant notification beeps and rapid schedules, anxiety often feels like an unwanted background static. But scripture reveals anxiety isn't meant to be managed alone; it is meant to be transferred."}..."
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-display font-black text-zinc-100 tracking-tight leading-none mb-1">
+                    Streams of Wisdom
+                  </h1>
+                  <p className="text-xs text-zinc-400 mt-1">LivingBread daily wisdom flow</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                {/* Smooth animated Daily Topic subtitle banner */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 to-zinc-950/40 border border-amber-500/15 animate-fadeIn duration-700">
+                  <span className="text-[9px] font-mono tracking-widest font-bold text-amber-400 block mb-1">TODAY'S SPIRITUAL TOPIC</span>
+                  <p className="text-sm md:text-base font-serif italic text-zinc-200">
+                    "{currentScripture.title[currentLang] || currentScripture.title["EN"]}"
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 pt-1">
                   <button
                     id="btn-home-devotional-trigger"
                     onClick={() => {
                       setCurrentPage("assistant");
                     }}
-                    className="bg-emerald-500 hover:bg-emerald-450 text-zinc-950 font-bold px-4 py-2.5 text-xs rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                    className="bg-emerald-500 hover:bg-emerald-450 text-zinc-950 font-bold px-4 py-2.5 text-xs rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer"
                   >
                     <BookOpen className="w-3.5 h-3.5 text-zinc-950" />
                     <span>{t.talkWithAi}</span>
@@ -459,7 +523,7 @@ export default function App() {
                   <button
                     id="btn-worship-playlist-trigger"
                     onClick={() => setCurrentPage("music")}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white border border-zinc-700 px-4 py-2.5 text-xs rounded-xl transition-all active:scale-95 flex items-center gap-1.5"
+                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white border border-zinc-700 px-4 py-2.5 text-xs rounded-xl transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
                   >
                     <Music className="w-3.5 h-3.5 text-emerald-400" />
                     <span>{t.streamPlaylist}</span>
@@ -468,44 +532,106 @@ export default function App() {
               </div>
             </section>
 
-            {/* Daily Scripture Promise Section with exact multi-lingual translations */}
-            <section className="bg-gradient-to-tr from-amber-500/10 via-amber-500/5 to-transparent rounded-3xl p-5 border border-amber-500/20 relative">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 text-[11px] text-amber-400 font-bold uppercase tracking-wider font-mono">
-                    <Bookmark className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{t.verseOfTheDaySection}</span>
+            {/* SCRIPTURE DEVO SYSTEM: Verse of the Day -> Inspiration -> Prayer */}
+            <div className="space-y-4">
+              {/* 1. Verse of the Day Card with Beautiful Background Image */}
+              <section 
+                id="verse-of-the-day-card"
+                className="relative overflow-hidden rounded-3xl p-6 md:p-8 border border-zinc-800 shadow-xl bg-zinc-950 min-h-[180px] flex flex-col justify-between"
+              >
+                {/* Background image & dark gradient overlay */}
+                <div className="absolute inset-0 z-0 select-none pointer-events-none">
+                  <img 
+                    src={[
+                      "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1472214222541-d510753a4907?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1475113548554-5a36f1f523d6?auto=format&fit=crop&q=80&w=800",
+                      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=800"
+                    ][new Date().getDate() % 10]} 
+                    alt="Spiritual reflection background" 
+                    className="w-full h-full object-cover opacity-30 select-none animate-pulse-slow"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/85 to-zinc-900/40" />
+                </div>
+
+                <div className="relative z-10 space-y-4 w-full">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[10px] text-amber-400 font-bold uppercase tracking-widest font-mono">
+                      <Bookmark className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                      <span>{t.verseOfTheDaySection}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        id="btn-bookmark-daily"
+                        onClick={() => {
+                          toggleFavoriteVerse(currentScripture.reference);
+                          alert("Scripture Promise Bookmarked to Profile Tab!");
+                        }}
+                        className="p-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/80 text-zinc-300 hover:text-amber-400 transition-all shadow-md active:scale-95"
+                        title="Bookmark verse"
+                      >
+                        <Bookmark className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        id="btn-share-daily"
+                        onClick={() => handleShareVerse(currentScripture)}
+                        className="p-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/80 text-zinc-300 hover:text-emerald-400 transition-all shadow-md active:scale-95"
+                        title="Share on WhatsApp"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <h3 className="text-base md:text-lg font-serif italic text-zinc-100 tracking-tight leading-relaxed">
+
+                  <blockquote className="text-lg md:text-xl font-serif italic text-zinc-100 tracking-tight leading-relaxed max-w-2xl">
                     "{currentScripture.text[currentLang] || currentScripture.text["EN"]}"
-                  </h3>
-                  <p className="text-xs font-semibold text-amber-300 font-sans">
+                  </blockquote>
+                  
+                  <div className="text-xs font-semibold text-amber-305 flex items-center gap-2 font-mono">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
                     — {currentScripture.reference} ({currentScripture.theme})
-                  </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    id="btn-bookmark-daily"
-                    onClick={() => {
-                      toggleFavoriteVerse(currentScripture.reference);
-                      alert("Scripture Promise Bookmarked to Profile Tab!");
-                    }}
-                    className="p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-amber-400 transition-all shadow"
-                    title="Bookmark scripture"
-                  >
-                    <Bookmark className="w-4 h-4" />
-                  </button>
-                  <button
-                    id="btn-share-daily"
-                    onClick={() => handleShareVerse(currentScripture)}
-                    className="p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-emerald-400 transition-all shadow"
-                    title="Share to WhatsApp"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
+              </section>
+
+              {/* 2. Daily Inspiration Card */}
+              <section 
+                id="daily-inspiration-card"
+                className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-6 shadow-lg space-y-3 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold uppercase tracking-wider font-mono">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>DAILY INSPIRATION</span>
                 </div>
-              </div>
-            </section>
+                <p className="text-xs md:text-sm text-zinc-350 leading-relaxed font-sans font-medium">
+                  {currentScripture.inspiration[currentLang] || currentScripture.inspiration["EN"]}
+                </p>
+              </section>
+
+              {/* 3. Daily Prayer Card */}
+              <section 
+                id="daily-prayer-card"
+                className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 shadow-md space-y-3 relative overflow-hidden"
+              >
+                <div className="absolute bottom-0 right-0 w-36 h-36 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex items-center gap-1.5 text-[10px] text-amber-400 font-bold uppercase tracking-wider font-mono">
+                  <Heart className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+                  <span>PRAYER FOR TODAY</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-zinc-950/60 border border-zinc-850 italic text-xs md:text-sm text-zinc-350 leading-relaxed font-serif">
+                  "{currentScripture.prayer[currentLang] || currentScripture.prayer["EN"]}"
+                </div>
+              </section>
+            </div>
 
             {/* Youth Section / Christian Shorts horizontal slider list */}
             <section className="space-y-3">
@@ -1000,104 +1126,162 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. SEAMLESS SPOTIFY MUSIC SECTION */}
+        {/* 4. SEAMLESS YOUTUBE MUSIC SECTION */}
         {currentPage === "music" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-fadeIn">
             <div className="space-y-3">
-              <span className="text-[10px] uppercase font-mono text-emerald-400 tracking-widest px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <span className="text-[10px] uppercase font-mono text-amber-400 tracking-widest px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
                 Premium Acoustic Praise Player
               </span>
-              <h2 className="text-xl md:text-2xl font-serif font-black text-zinc-100">Spotify Praise Stream</h2>
-              <p className="text-xs text-zinc-400">Stream beautifully curated acoustic chords, high-vibe pad loops and classical hymns instantly</p>
+              <h2 className="text-xl md:text-2xl font-serif font-black text-zinc-100">YouTube Worship Studio</h2>
+              <p className="text-xs text-zinc-400">Search and stream genuine modern worship anthems, acoustic chords and prayer pad loops dynamically from YouTube Studio</p>
 
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-zinc-500" />
-                <input
-                  id="music-search-field"
-                  type="text"
-                  placeholder="Search tracks, singers, albums..."
-                  value={musicSearch}
-                  onChange={e => setMusicSearch(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-10 py-3 text-xs md:text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
+              <form onSubmit={handleSpotifySearch} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-zinc-500" />
+                  <input
+                    id="music-search-field"
+                    type="text"
+                    placeholder="Search Hillsong, Brandon Lake, Way Maker, Nagamese or Hindi Worship..."
+                    value={musicSearch}
+                    onChange={e => {
+                      setMusicSearch(e.target.value);
+                      if (!e.target.value) {
+                        setSpotifySearchResults(null);
+                      }
+                    }}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-10 py-3 text-xs md:text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <button
+                  id="btn-spotify-search"
+                  type="submit"
+                  disabled={isSearchingSpotify}
+                  className="px-5 py-3 rounded-xl bg-amber-500 text-zinc-950 font-bold text-xs hover:bg-amber-400 font-mono transition-all flex items-center gap-1.5 cursor-pointer disabled:bg-zinc-800 disabled:text-zinc-500 active:scale-95"
+                >
+                  {isSearchingSpotify ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                  <span>Search</span>
+                </button>
+              </form>
             </div>
 
             {/* Playlists list */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              {filteredSongs.map(song => {
-                const isPlayingThis = currentSong?.id === song.id && isPlaying;
-                const isFav = user.favorites.songs.includes(song.id);
-                return (
-                  <div
-                    key={song.id}
-                    onClick={() => {
-                      if (isPlayingThis) {
-                        pauseSong();
-                      } else {
-                        playSong(song, songs);
-                      }
-                    }}
-                    className={`p-3.5 rounded-2xl transition-all duration-300 border flex items-center justify-between gap-3.5 cursor-pointer shadow-sm select-none ${
-                      currentSong?.id === song.id 
-                        ? "bg-gradient-to-r from-emerald-500/10 to-amber-500/5 border-emerald-500/45 shadow-md text-white scale-[1.01]" 
-                        : "bg-zinc-900/60 border-zinc-850 hover:border-zinc-805 hover:bg-zinc-850/80"
-                    } group`}
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="relative w-14 h-14 bg-zinc-800 shrink-0 rounded-xl overflow-hidden shadow border border-zinc-800">
-                        <img
-                          src={song.coverUrl}
-                          alt={song.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/50 transition-colors duration-300">
-                          <div className="p-1.5 rounded-full bg-white text-zinc-950 shadow-md">
-                            {isPlayingThis ? (
-                              <Pause className="w-3.5 h-3.5 fill-current text-zinc-950" />
-                            ) : (
-                              <Play className="w-3.5 h-3.5 fill-current text-zinc-950 ml-0.5" />
-                            )}
+            {isSearchingSpotify ? (
+              <div id="spotify-search-loader" className="py-16 text-center space-y-4">
+                <div className="relative w-12 h-12 mx-auto">
+                  <div className="absolute inset-0 rounded-full border-4 border-amber-500/10" />
+                  <div className="absolute inset-0 rounded-full border-4 border-amber-500 border-t-transparent animate-spin" />
+                </div>
+                <p className="text-xs font-mono text-amber-400 animate-pulse">Querying YouTube Worship Studio database...</p>
+              </div>
+            ) : spotifySearchError ? (
+              <div className="p-8 text-center bg-rose-500/5 border border-rose-500/15 rounded-2xl text-rose-400 text-xs">
+                {spotifySearchError}
+              </div>
+            ) : (spotifySearchResults !== null && spotifySearchResults.length === 0) ? (
+              <div id="spotify-empty-results" className="p-10 text-center bg-zinc-900/40 border border-zinc-850 rounded-2xl max-w-md mx-auto space-y-3">
+                <Music className="w-9 h-9 text-zinc-600 mx-auto" />
+                <h4 className="text-sm font-bold text-zinc-300">No matching worship tracks found</h4>
+                <p className="text-xs text-zinc-500">We couldn't locate matching chords or covers for "{musicSearch}" on the YouTube Worship Studio catalog.</p>
+                <button
+                  id="btn-clear-spotify-search"
+                  type="button"
+                  onClick={() => { setMusicSearch(""); setSpotifySearchResults(null); }}
+                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-[10px] font-mono tracking-wider text-zinc-300 uppercase transition-all"
+                >
+                  Reset Playlists
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {(spotifySearchResults !== null ? spotifySearchResults : filteredSongs).map(song => {
+                  const isPlayingThis = currentSong?.id === song.id && isPlaying;
+                  const isFav = user.favorites.songs.includes(song.id);
+                  const songExternalUrl = song.youtubeUrl || song.spotifyUrl;
+                  return (
+                    <div
+                      key={song.id}
+                      onClick={() => {
+                        if (isPlayingThis) {
+                          pauseSong();
+                        } else {
+                          // Play the selected song within context pool safely
+                          playSong(song, spotifySearchResults || songs);
+                        }
+                      }}
+                      className={`p-3.5 rounded-2xl transition-all duration-300 border flex items-center justify-between gap-3.5 cursor-pointer shadow-sm select-none ${
+                        currentSong?.id === song.id 
+                          ? "bg-gradient-to-r from-emerald-500/10 to-amber-500/5 border-emerald-500/45 shadow-md text-white scale-[1.01]" 
+                          : "bg-zinc-900/60 border-zinc-850 hover:border-zinc-805 hover:bg-zinc-850/80"
+                      } group`}
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className="relative w-14 h-14 bg-zinc-800 shrink-0 rounded-xl overflow-hidden shadow border border-zinc-800">
+                          <img
+                            src={song.coverUrl}
+                            alt={song.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/50 transition-colors duration-300">
+                            <div className="p-1.5 rounded-full bg-white text-zinc-950 shadow-md">
+                              {isPlayingThis ? (
+                                <Pause className="w-3.5 h-3.5 fill-current text-zinc-950" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5 fill-current text-zinc-950 ml-0.5" />
+                              )}
+                            </div>
                           </div>
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <h4 className={`text-xs md:text-sm font-bold truncate flex items-center gap-1.5 transition-colors ${
+                            currentSong?.id === song.id ? "text-amber-400" : "text-zinc-100"
+                          }`}>
+                            {song.title}
+                            {isPlayingThis && (
+                              <span className="flex gap-[2px] items-end h-3 shrink-0">
+                                <span className="w-0.5 bg-amber-400 rounded-full animate-bounce h-2" style={{ animationDelay: "0s", animationDuration: "0.6s" }} />
+                                <span className="w-0.5 bg-amber-400 rounded-full animate-bounce h-3" style={{ animationDelay: "0.2s", animationDuration: "0.8s" }} />
+                                <span className="w-0.5 bg-amber-400 rounded-full animate-bounce h-1.5" style={{ animationDelay: "0.4s", animationDuration: "0.5s" }} />
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-[10px] md:text-xs text-zinc-400 truncate mt-0.5">
+                            {song.artist} • <span className="italic text-zinc-550">{song.album}</span>
+                          </p>
                         </div>
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        <h4 className={`text-xs md:text-sm font-bold truncate flex items-center gap-1.5 transition-colors ${
-                          currentSong?.id === song.id ? "text-emerald-400" : "text-zinc-100"
-                        }`}>
-                          {song.title}
-                          {isPlayingThis && (
-                            <span className="flex gap-[2px] items-end h-3 shrink-0">
-                              <span className="w-0.5 bg-emerald-400 rounded-full animate-bounce h-2" style={{ animationDelay: "0s", animationDuration: "0.6s" }} />
-                              <span className="w-0.5 bg-emerald-400 rounded-full animate-bounce h-3" style={{ animationDelay: "0.2s", animationDuration: "0.8s" }} />
-                              <span className="w-0.5 bg-emerald-400 rounded-full animate-bounce h-1.5" style={{ animationDelay: "0.4s", animationDuration: "0.5s" }} />
-                            </span>
-                          )}
-                        </h4>
-                        <p className="text-[10px] md:text-xs text-zinc-400 truncate mt-0.5">
-                          {song.artist} • <span className="italic text-zinc-550">{song.album}</span>
-                        </p>
+                      <div className="flex items-center gap-2 px-1 shrink-0" onClick={e => e.stopPropagation()}>
+                        <span className="font-mono text-[9px] text-zinc-500 mr-1">{song.duration}</span>
+                        {songExternalUrl && (
+                          <a
+                            id={`spotify-external-link-${song.id}`}
+                            href={songExternalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg transition text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/15 border border-red-500/10"
+                            title="Watch On YouTube"
+                          >
+                            <Tv className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button
+                          id={`btn-fav-song-row-${song.id}`}
+                          onClick={() => toggleFavoriteSong(song.id)}
+                          className={`p-2 rounded-xl transition ${
+                            isFav ? "text-rose-500 bg-rose-500/10 shadow-sm" : "text-zinc-500 hover:text-rose-450 bg-zinc-950 hover:bg-zinc-800"
+                          }`}
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${isFav ? "fill-current" : ""}`} />
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
-                      <span className="font-mono text-[9px] text-zinc-500">{song.duration}</span>
-                      <button
-                        id={`btn-fav-song-row-${song.id}`}
-                        onClick={() => toggleFavoriteSong(song.id)}
-                        className={`p-2 rounded-xl transition ${
-                          isFav ? "text-rose-500 bg-rose-500/10 shadow-sm" : "text-zinc-500 hover:text-rose-450 bg-zinc-950 hover:bg-zinc-800"
-                        }`}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${isFav ? "fill-current" : ""}`} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

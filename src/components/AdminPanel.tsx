@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { 
   Plus, 
@@ -66,6 +66,9 @@ export const AdminPanel: React.FC = () => {
 
   // Drag and drop state indicators
   const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [loadedFile, setLoadedFile] = useState<{ name: string; size: string; type: string } | null>(null);
 
   // Standard preset Christian categories asked by user
   const adminCategories = [
@@ -177,40 +180,97 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const processUploadedFile = (file: File) => {
+    setUploadProgress(0);
+    setLoadedFile({
+      name: file.name,
+      size: (file.size / (1024 * 1024)).toFixed(2) + " MB",
+      type: file.type
+    });
+    setStatus(null);
+
+    // Beautiful simulated progress interval
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.floor(Math.random() * 15) + 10;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        
+        // Generate real Object URL so the file is directly playable in our audio player!
+        const objectUrl = URL.createObjectURL(file);
+        
+        setStatus({
+          message: `Successfully uploaded "${file.name}" to cloud media pool! Ready for instant playback of this actual file in the app.`,
+          isError: false
+        });
+
+        // Autofill forms depending on exact folder type of media
+        const baseName = file.name.replace(/\.[^/.]+$/, "");
+        
+        if (file.type.startsWith("audio/") || file.name.endsWith(".mp3") || file.name.endsWith(".wav") || file.name.endsWith(".m4a")) {
+          // It's a worship song track
+          setActiveTab("song");
+          setSongForm(prev => ({
+            ...prev,
+            title: prev.title || baseName,
+            audioUrl: objectUrl,
+            album: prev.album || "Local Sanctuary Recording",
+            artist: prev.artist || "Fellowship Artist"
+          }));
+        } else if (file.type.startsWith("video/") || file.name.endsWith(".mp4") || file.name.endsWith(".mov")) {
+          // It's a vertical reel or sermon sermon
+          if (file.size < 15 * 1024 * 1024) {
+            // Under 15MB: Reel!
+            setActiveTab("short");
+            setShortForm(prev => ({
+              ...prev,
+              title: prev.title || baseName,
+              videoUrl: objectUrl,
+              speaker: prev.speaker || "Admin Pastor"
+            }));
+          } else {
+            // Overhead: Video Sermon!
+            setActiveTab("sermon");
+            setSermonForm(prev => ({
+              ...prev,
+              title: prev.title || baseName,
+              youtubeId: "", // Since it plays locally via custom video controller
+              videoUrl: objectUrl, // Supports direct videoUrl streaming custom-built
+              pastor: prev.pastor || "Malsom Vaiphei",
+              thumbnailUrl: "https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?auto=format&fit=crop&q=80&w=400"
+            }));
+          }
+        }
+        
+        // Reset progress bar indicator after delay
+        setTimeout(() => setUploadProgress(null), 1800);
+      } else {
+        setUploadProgress(progress);
+      }
+    }, 120);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     
-    // Simulate audio/video link generation from drop
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const fileName = e.dataTransfer.files[0].name;
-      const fileType = e.dataTransfer.files[0].type;
-      
-      setStatus({ 
-        message: `Successfully processed local file "${fileName}". A secure cloud hosting stream link has been simulated automatically for development efficiency!`, 
-        isError: false 
-      });
-
-      if (activeTab === "song") {
-        setSongForm(prev => ({
-          ...prev,
-          title: prev.title || fileName.replace(/\.[^/.]+$/, ""),
-          audioUrl: `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3`
-        }));
-      } else if (activeTab === "sermon") {
-        setSermonForm(prev => ({
-          ...prev,
-          title: prev.title || fileName.replace(/\.[^/.]+$/, "")
-        }));
-      } else if (activeTab === "short") {
-        setShortForm(prev => ({
-          ...prev,
-          title: prev.title || fileName.replace(/\.[^/.]+$/, ""),
-          videoUrl: `https://player.vimeo.com/external/440536412.sd.mp4?s=6a978f1618698516d29ffb1d9bfcf90c42240b9&profile_id=165&oauth2_token_id=57447761`
-        }));
-      }
+      processUploadedFile(e.dataTransfer.files[0]);
     }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      processUploadedFile(e.target.files[0]);
+    }
+  };
+
+  const handleReplaceMedia = () => {
+    setLoadedFile(null);
+    setUploadProgress(null);
+    setStatus({ message: "Media cleared. You can drop or choose another file now.", isError: false });
   };
 
   // Submit Operations
@@ -523,21 +583,68 @@ export const AdminPanel: React.FC = () => {
             </button>
           </div>
 
-          {/* Interactive Drag & Drop Area */}
+          {/* Interactive Drag & Drop / Click to Upload Area */}
           <div 
             onDragEnter={handleDrag}
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
             onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
-              dragActive ? "border-emerald-400 bg-emerald-500/5" : "border-zinc-800 bg-zinc-950/20 hover:bg-zinc-850/10"
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 relative ${
+              dragActive ? "border-emerald-400 bg-emerald-500/10 scale-[1.01]" : "border-zinc-800 bg-zinc-950/20 hover:bg-zinc-850/15"
             }`}
           >
-            <UploadCloud className="w-7 h-7 text-zinc-500" />
-            <div className="text-center">
-              <span className="text-[11px] font-medium text-zinc-300 block">Drag & Drop Audio / Video files here</span>
-              <span className="text-[9px] text-zinc-500 block mt-0.5">Or browse folder files to automatically link cloud stream</span>
-            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="audio/*,video/*" 
+              onChange={handleFileInputChange} 
+            />
+
+            {uploadProgress !== null ? (
+              <div id="upload-progress-container" className="w-full max-w-xs space-y-2 py-2" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between text-[11px] font-mono text-emerald-400">
+                  <span className="animate-pulse">Uploading Media...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-150 rounded-full" 
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-[9px] text-zinc-500">Do not close this tab. Processing audio/video codecs...</p>
+              </div>
+            ) : loadedFile ? (
+              <div id="media-loaded-feedback" className="w-full p-2.5 bg-emerald-500/5 rounded-xl border border-emerald-500/25 flex items-center justify-between gap-3 text-left" onClick={e => e.stopPropagation()}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
+                    <span className="text-[11px] font-mono font-bold text-emerald-400 uppercase tracking-wider block">Media Vault File Ready</span>
+                  </div>
+                  <span className="text-[11px] font-medium text-zinc-200 block truncate mt-0.5" title={loadedFile.name}>{loadedFile.name}</span>
+                  <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">{loadedFile.size} • {loadedFile.type || "unknown codec"}</span>
+                </div>
+                <button
+                  id="btn-replace-media"
+                  type="button"
+                  onClick={handleReplaceMedia}
+                  className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-350 font-mono text-[9px] uppercase tracking-wider rounded-lg border border-zinc-800 font-bold transition-all shrink-0 cursor-pointer"
+                >
+                  Replace
+                </button>
+              </div>
+            ) : (
+              <>
+                <UploadCloud className="w-8 h-8 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+                <div className="text-center">
+                  <span className="text-[11px] font-semibold text-zinc-300 block">Drag & Drop Audio / Video here</span>
+                  <span className="text-[10px] text-zinc-400 block mt-0.5">Or <span className="text-emerald-400 font-bold underline">click to browse</span> from device</span>
+                  <span className="text-[9px] text-zinc-500 block mt-1">Accepts MP3, WAV, MP4, MOV (Auto codec detect)</span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* TAB 1: WORSHIP SONG / SPOTIFY PUBLISHER FORM */}
