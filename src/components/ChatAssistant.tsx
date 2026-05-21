@@ -37,27 +37,48 @@ export const ChatAssistant: React.FC = () => {
     setMessages(updatedMessages);
     setChatLoading(true);
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Pass full chat history for conversation flow
-        messages: updatedMessages.map((m) => ({
-  role: m.role,
-  content: m.content,
-})),  
+    try {const response = await fetch("/api/chat", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    messages: updatedMessages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
+  }),
+});
 
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(prev => [
-          ...prev, 
-          { 
-            role: "model", 
-            content: data.content,
-            isWarning: !!data.warning
-          }
-        ]);
+if (response.ok) {
+  const data = await response.json();
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      role: "model",
+      content: data.reply,
+      isWarning: !!data.warning,
+    },
+  ]);
+}
+      
+        
+        
+        
+          
+        
+  
+  
+  
+
+
+        
+         
+          
+             
+            
+          
+          
+        
       } else {
         throw new Error("Chat response failed");
       }
