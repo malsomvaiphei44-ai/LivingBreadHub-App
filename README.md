@@ -8,7 +8,7 @@ This app is a Christian AI Pastor app with:
 
 ## API Route
 
-/ api/chat.js (backend AI function)
+ /api/chat.js (backend AI function)
 
 ## Features Coming
 
