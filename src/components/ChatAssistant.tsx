@@ -37,7 +37,7 @@ export const ChatAssistant: React.FC = () => {
     setMessages(updatedMessages);
     setChatLoading(true);
 
-    try {const response = await fetch("/api/chat", {
+     const response = await fetch("/api/chat", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -74,7 +74,7 @@ if (response.ok) {
     throw new Error("Chat response failed");
   }
 
-  const data = await response.json();
+  
 
   setMessages((prev) => [
     ...prev,
