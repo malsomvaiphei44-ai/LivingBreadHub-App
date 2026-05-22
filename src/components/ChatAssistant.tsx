@@ -79,9 +79,11 @@ export const ChatAssistant: React.FC = () => {
     setChatLoading(true);
 
     try {
-      const response = await fetch("/api/chat", {
+    const response = await fetch("/api/chat", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+  },
   body: JSON.stringify({
     messages: updatedMessages.map((m) => ({
       role: m.role,
@@ -89,19 +91,17 @@ export const ChatAssistant: React.FC = () => {
     })),
   }),
 });
-  
-  
-  
-    
-  
 
-        
-        
-        
-          
-        
-      
+const data = await response.json();
 
+setMessages((prev) => [
+  ...prev,
+  {
+    role: "model",
+    content: data.reply,
+    isWarning: !!data.warning,
+  },
+]);
       if (response.ok) {
         const data = await response.json();
         setMessages(prev => [
