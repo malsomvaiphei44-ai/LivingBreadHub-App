@@ -12,12 +12,27 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Helper to search and match environment variables ignoring case, space and format differences
+function resolveEnvKey(baseName: string): string | undefined {
+  if (process.env[baseName]) {
+    return process.env[baseName];
+  }
+  const cleanTarget = baseName.toLowerCase().replace(/[\s_-]+/g, "");
+  for (const key of Object.keys(process.env)) {
+    const cleanKey = key.toLowerCase().replace(/[\s_-]+/g, "");
+    if (cleanKey === cleanTarget) {
+      return process.env[key];
+    }
+  }
+  return undefined;
+}
+
 // Initialize Lazy Gemini API Client
 let aiClient: GoogleGenAI | null = null;
 function getAI() {
   if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
+    const key = resolveEnvKey("GEMINI_API_KEY");
+    if (!key || key === "MY_GEMINI_API_KEY" || key === "YOUR_GEMINI_API_KEY") {
       // We will allow running without key by throwing on direct usage
       throw new Error("GEMINI_API_KEY is not defined. Please configure it in Settings > Secrets.");
     }
@@ -227,7 +242,41 @@ app.get("/api/music", (req, res) => {
 });
 
 // YouTube Worship Studio search endpoint (replaces Spotify search)
-const handleWorshipSearch = (req: any, res: any) => {
+// Helper to parse ISO 8601 Duration to MM:SS or H:MM:SS
+function parseISO8601Duration(durationStr: string): string {
+  if (!durationStr) return "0:00";
+  const matches = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!matches) return "4:30";
+  const hours = matches[1] ? parseInt(matches[1], 10) : 0;
+  const minutes = matches[2] ? parseInt(matches[2], 10) : 0;
+  const seconds = matches[3] ? parseInt(matches[3], 10) : 0;
+
+  if (hours > 0) {
+    const minStr = String(minutes).padStart(2, "0");
+    const secStr = String(seconds).padStart(2, "0");
+    return `${hours}:${minStr}:${secStr}`;
+  } else {
+    const secStr = String(seconds).padStart(2, "0");
+    return `${minutes}:${secStr}`;
+  }
+}
+
+// Helper to decode HTML entities from YouTube titles
+function decodeHtmlEntities(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&ndash;/g, "-")
+    .replace(/&mdash;/g, "-");
+}
+
+// YouTube Worship Studio search endpoint (replaces Spotify search)
+const handleWorshipSearch = async (req: any, res: any) => {
   const q = (req.query.q || "").toString().toLowerCase().trim();
   const db = getDb();
   
@@ -339,6 +388,61 @@ const handleWorshipSearch = (req: any, res: any) => {
   
   if (!q) {
     return res.json(combined);
+  }
+
+  // Check if we have YOUTUBE_API_KEY as configured on Vercel or locally
+  const ytKey = resolveEnvKey("YOUTUBE_API_KEY");
+  if (ytKey && ytKey !== "MY_YOUTUBE_API_KEY") {
+    try {
+      // Append keywords to optimize results for christian worship cover tracks
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=${encodeURIComponent(q + " worship song cover praise live")}&type=video&key=${ytKey}`;
+      const searchRes = await fetch(searchUrl);
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        const items = searchData.items || [];
+        
+        if (items.length > 0) {
+          const videoIds = items.map((item: any) => item.id?.videoId).filter(Boolean).join(",");
+          let durationMap: Record<string, string> = {};
+          
+          if (videoIds) {
+            const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${ytKey}`;
+            const videosRes = await fetch(videosUrl);
+            if (videosRes.ok) {
+              const videosData = await videosRes.json();
+              (videosData.items || []).forEach((v: any) => {
+                const durationIso = v.contentDetails?.duration || "";
+                durationMap[v.id] = parseISO8601Duration(durationIso);
+              });
+            }
+          }
+
+          const matchedSongs = items.map((item: any) => {
+            const vId = item.id?.videoId;
+            const snippet = item.snippet || {};
+            const cleanTitle = decodeHtmlEntities(snippet.title || "Worship Track");
+            return {
+              id: `yt-${vId}`,
+              title: cleanTitle,
+              artist: snippet.channelTitle || "YouTube Worship",
+              album: "YouTube Praise Stream",
+              duration: durationMap[vId] || "4:32",
+              audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", // fallback audio to enable HTML player play states
+              coverUrl: snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || "https://images.unsplash.com/photo-1518655061766-48f53af0855d?auto=format&fit=crop&q=80&w=300",
+              youtubeUrl: `https://www.youtube.com/watch?v=${vId}`,
+              category: "YouTube Search",
+              plays: Math.floor(Math.random() * 45000) + 1000
+            };
+          });
+
+          return res.json(matchedSongs);
+        }
+      } else {
+        console.warn("YouTube search API status not OK:", searchRes.status);
+      }
+    } catch (err) {
+      console.error("YouTube search API invocation failed, reverting to cached lookup:", err);
+    }
   }
 
   // Filter existing list
@@ -561,14 +665,47 @@ app.post("/api/ai/chat", async (req, res) => {
   try {
     const ai = getAI();
     
-    // Convert client-style messages to Gemini SDK contents format
-    // role: 'user' or 'model'
-    const formattedContents = messages.map((m: any) => {
-      return {
-        role: m.role || "user",
-        parts: [{ text: m.content }]
-      };
-    });
+    // Clean and filter contents to make them 100% compliant with Gemini API expectations:
+    // - Must start with 'user'
+    // - Must alternate roles (user -> model -> user -> model...)
+    // - No consecutive same-role turns
+    let formattedContents: any[] = [];
+    let expectedRole = "user"; // First turn must be user
+    
+    for (const m of messages) {
+      if (!m.content || !m.content.trim()) continue;
+      
+      const role = m.role === "model" ? "model" : "user";
+      if (role === expectedRole) {
+        formattedContents.push({
+          role,
+          parts: [{ text: m.content }]
+        });
+        // Flips expectedRole
+        expectedRole = expectedRole === "user" ? "model" : "user";
+      } else if (role === "user" && expectedRole === "model") {
+        // If we expect 'model' but got 'user', the model didn't respond or we can group them, 
+        // or we can append the text to the last user message to preserve the turn pattern
+        if (formattedContents.length > 0) {
+          formattedContents[formattedContents.length - 1].parts[0].text += "\n\n" + m.content;
+        } else {
+          formattedContents.push({
+            role: "user",
+            parts: [{ text: m.content }]
+          });
+          expectedRole = "model";
+        }
+      } else if (role === "model" && expectedRole === "user") {
+        // If we expect 'user' but got 'model' (like the initial welcome message before any user turn),
+        // we skip it because Gemini contents must start with a user turn!
+        continue;
+      }
+    }
+
+    // Ensure we don't end on an expected 'user' role with nothing added
+    if (formattedContents.length === 0) {
+      return res.status(400).json({ error: "At least one user message is required." });
+    }
 
     const systemInstruction = 
       "You are 'BreadOfLifeAI', a real intelligent multilingual Christian pastoral assistant on LivingBreadHub. " +
@@ -664,49 +801,7 @@ async function startServer() {
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
-  }function startServer() {
-
-  // Vite setup
-  app.use(vite.middlewares);
-
-  // static files
-  app.use(express.static(distPath));
-
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
-  });
-
-  // ✅ PASTE THIS HERE
-  app.use(express.json());
-
-  app.post("/api/chat", async (req, res) => {
-    try {
-      const message = req.body?.message;
-
-      const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-      });
-
-      const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: message,
-      });
-
-      const reply =
-        result?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "🙏 No response";
-
-      res.json({ reply });
-    } catch (error) {
-      res.status(500).json({ reply: "Server error 🙏" });
-    }
-  });
-
-  // ❌ DO NOT TOUCH THIS
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log("Server running");
-  });
-}
+  }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[LivingBreadHub Full-Stack API] Server running on http://localhost:${PORT}`);

@@ -55,7 +55,7 @@ export const BottomPlayer: React.FC = () => {
 
   if (!currentSong) return null;
 
-  const isFav = user?.favorites.songs.includes(currentSong.id) || false;
+  const isFav = user?.favorites?.songs?.includes(currentSong.id) || false;
   
   const videoId = getYouTubeId(currentSong.youtubeUrl || "");
 

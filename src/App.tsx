@@ -27,6 +27,11 @@ import {
   Send,
   Sliders,
   ZoomIn,
+  ZoomOut,
+  Clock,
+  Bell,
+  BellOff,
+  Calendar,
   RefreshCw,
   ExternalLink,
   LogOut,
@@ -77,6 +82,73 @@ export default function App() {
 
   // Active Switching Page Navigation including law compliance and support terms
   const [currentPage, setCurrentPage] = useState<"home" | "bible" | "sermons" | "music" | "shorts" | "prayers" | "assistant" | "profile" | "admin" | "about" | "contact" | "privacy" | "terms">("home");
+
+  // Bible reading plan reminder models
+  interface BibleReminder {
+    id: string;
+    planName: string;
+    time: string; // HH:MM
+    isActive: boolean;
+    method: "toast" | "push";
+  }
+
+  const [reminders, setReminders] = useState<BibleReminder[]>(() => {
+    const saved = localStorage.getItem("living_bread_reminders_2026");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return [
+      { id: "rem1", planName: "Daily Bread: Gospel of John Journey", time: "08:00", isActive: true, method: "toast" }
+    ];
+  });
+
+  const [activeToast, setActiveToast] = useState<{ id: string; title: string; message: string; planName?: string } | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("living_bread_reminders_2026", JSON.stringify(reminders));
+  }, [reminders]);
+
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      const currentHour = String(now.getHours()).padStart(2, "0");
+      const currentMinute = String(now.getMinutes()).padStart(2, "0");
+      const currentTimeStr = `${currentHour}:${currentMinute}`;
+      
+      const lastTriggered = sessionStorage.getItem("living_bread_last_trigger_time");
+      if (lastTriggered === currentTimeStr) return;
+
+      reminders.forEach(rem => {
+        if (rem.isActive && rem.time === currentTimeStr) {
+          sessionStorage.setItem("living_bread_last_trigger_time", currentTimeStr);
+          
+          setActiveToast({
+            id: rem.id,
+            title: "📖 Scripture Reading Reminder",
+            message: `Time for your daily spiritual bread! Enter into the scripture plan for "${rem.planName}" now.`,
+            planName: rem.planName
+          });
+
+          if (rem.method === "push" && "Notification" in window) {
+            if (Notification.permission === "granted") {
+              new Notification("📖 LivingBreadHub Scripture Reminder", {
+                body: `It's time for your daily scripture session: ${rem.planName}!`,
+                icon: "https://images.unsplash.com/photo-1518655061766-48f53af0855d?auto=format&fit=crop&q=80&w=150"
+              });
+            }
+          }
+        }
+      });
+    };
+
+    checkReminders();
+    const timer = setInterval(checkReminders, 15000);
+    return () => clearInterval(timer);
+  }, [reminders]);
 
   // Screen Zoom / Accessibility Feature Scale (1.0 = Normal, 1.15 = Large, 1.30 = Extra Large, 1.40 = Magnified / Max)
   const [fontScale, setFontScale] = useState<number>(() => {
@@ -413,23 +485,34 @@ export default function App() {
               🌐 {currentLang === "EN" ? "ENGLISH" : currentLang === "HI" ? "हिन्दी" : "NAGAMESE"}
             </button>
 
-            {/* Screen Zoom Accessibility Button */}
-            <button
-              id="btn-accessibility-zoom"
-              onClick={() => {
-                setFontScale(prev => {
-                  if (prev === 1.0) return 1.15;
-                  if (prev === 1.15) return 1.30;
-                  if (prev === 1.30) return 1.40;
-                  return 1.0;
-                });
-              }}
-              className="text-[10px] tracking-widest font-bold font-mono border border-zinc-800/80 rounded-lg px-2 py-1 text-zinc-400 hover:text-amber-400 transition-colors flex items-center gap-1.5"
-              title="Enhance layout zoom for readability"
-            >
-              <ZoomIn className="w-3.5 h-3.5 text-amber-500/80" />
-              <span>ZOOM: {Math.round(fontScale * 100)}%</span>
-            </button>
+            {/* Screen Zoom Accessibility Buttons */}
+            <div id="btn-accessibility-zoom-group" className="flex items-center gap-1 border border-zinc-800/80 rounded-lg px-1.5 py-0.5 bg-zinc-950/40">
+              <button
+                id="btn-accessibility-zoom-out"
+                onClick={() => {
+                  setFontScale(prev => Math.max(0.70, parseFloat((prev - 0.10).toFixed(2))));
+                }}
+                disabled={fontScale <= 0.70}
+                className="p-1 rounded text-zinc-400 hover:text-amber-400 disabled:opacity-30 disabled:hover:text-zinc-400 cursor-pointer"
+                title="Zoom Out font readability scale"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] tracking-widest font-bold font-mono text-zinc-400 min-w-[72px] text-center select-none">
+                ZOOM: {Math.round(fontScale * 100)}%
+              </span>
+              <button
+                id="btn-accessibility-zoom-in"
+                onClick={() => {
+                  setFontScale(prev => Math.min(1.60, parseFloat((prev + 0.10).toFixed(2))));
+                }}
+                disabled={fontScale >= 1.60}
+                className="p-1 rounded text-zinc-400 hover:text-amber-400 disabled:opacity-30 disabled:hover:text-zinc-400 cursor-pointer"
+                title="Zoom In font readability scale"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             {/* Admin Console Route button visible if user role === 'admin' or has admin in email */}
             {(user.role === "admin" || user.email.includes("admin")) && (
@@ -712,7 +795,7 @@ export default function App() {
                   </div>
                 ) : (
                   sermons.slice(0, 2).map((sermon) => {
-                    const isFav = user.favorites.sermons.includes(sermon.id);
+                    const isFav = user?.favorites?.sermons?.includes(sermon.id) || false;
                     return (
                       <div
                         key={sermon.id}
@@ -796,7 +879,7 @@ export default function App() {
                 ) : (
                   songs.slice(0, 5).map((song) => {
                     const isCurrent = currentSong?.id === song.id;
-                    const isFav = user.favorites.songs.includes(song.id);
+                    const isFav = user?.favorites?.songs?.includes(song.id) || false;
                     return (
                       <div
                         key={song.id}
@@ -964,7 +1047,7 @@ export default function App() {
             {/* Verses grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredVerses.map(verse => {
-                const isFav = user.favorites.verses.includes(verse.id);
+                const isFav = user?.favorites?.verses?.includes(verse.id) || false;
                 return (
                   <div
                     key={verse.id}
@@ -1054,7 +1137,7 @@ export default function App() {
             {/* Sermons list */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredSermons.map(sermon => {
-                const isFav = user.favorites.sermons.includes(sermon.id);
+                const isFav = user?.favorites?.sermons?.includes(sermon.id) || false;
                 const isActivePlaying = activeYoutubeEmbed === sermon.youtubeId;
                 return (
                   <div
@@ -1196,7 +1279,7 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {(spotifySearchResults !== null ? spotifySearchResults : filteredSongs).map(song => {
                   const isPlayingThis = currentSong?.id === song.id && isPlaying;
-                  const isFav = user.favorites.songs.includes(song.id);
+                  const isFav = user?.favorites?.songs?.includes(song.id) || false;
                   const songExternalUrl = song.youtubeUrl || song.spotifyUrl;
                   return (
                     <div
@@ -1461,11 +1544,11 @@ export default function App() {
               <div className="bg-zinc-900/60 p-5 rounded-2xl border border-zinc-800 space-y-3">
                 <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-400 flex items-center gap-1.5 font-mono">
                   <Bookmark className="w-4 h-4 text-amber-400 fill-current" />
-                  Saved Scriptures ({user.favorites.verses.length})
+                  Saved Scriptures ({user?.favorites?.verses?.length || 0})
                 </h4>
 
                 <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                  {user.favorites.verses.map((vRef, idx) => {
+                  {(user?.favorites?.verses || []).map((vRef, idx) => {
                     return (
                       <div key={idx} className="p-3 bg-zinc-950 rounded-xl border border-zinc-850">
                         <p className="font-serif italic text-zinc-305 leading-relaxed text-[11px] md:text-xs">
@@ -1485,8 +1568,8 @@ export default function App() {
                     );
                   })}
 
-                  {user.favorites.verses.length === 0 && (
-                    <p className="text-zinc-500 italic text-center py-4 bg-zinc-950/30 rounded-xl">
+                  {(!user?.favorites?.verses || user.favorites.verses.length === 0) && (
+                    <p className="text-zinc-500 italic text-center py-4 bg-zinc-950/30 rounded-xl font-sans">
                       No saved scriptures yet. Tap bookmarked promise icons on holy Bible scriptures.
                     </p>
                   )}
@@ -1497,12 +1580,12 @@ export default function App() {
               <div className="bg-zinc-900/60 p-5 rounded-2xl border border-zinc-805 space-y-3">
                 <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-400 flex items-center gap-1.5 font-mono">
                   <Heart className="w-4 h-4 text-rose-500 fill-current" />
-                  Favorite Praise Tracks ({user.favorites.songs.length})
+                  Favorite Praise Tracks ({user?.favorites?.songs?.length || 0})
                 </h4>
 
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {songs
-                    .filter(s => user.favorites.songs.includes(s.id))
+                    .filter(s => user?.favorites?.songs?.includes(s.id))
                     .map(song => (
                       <div
                         key={song.id}
@@ -1526,7 +1609,7 @@ export default function App() {
                       </div>
                     ))}
 
-                  {user.favorites.songs.length === 0 && (
+                  {(!user?.favorites?.songs || user.favorites.songs.length === 0) && (
                     <p className="text-zinc-500 italic text-center py-4 bg-zinc-950/30 rounded-xl font-sans">
                       No saved praise songs yet. Try tapping hearts in music panels.
                     </p>
@@ -1560,6 +1643,203 @@ export default function App() {
                   No recently played logs. Choose some worship tracks to begin track playback.
                 </p>
               )}
+            </div>
+
+            {/* 📖 SCRIPTURAL READING REMINDERS & NOTIFICATION PLANS */}
+            <div className="bg-zinc-900/60 p-5 rounded-2xl border border-zinc-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/80 pb-3 gap-2">
+                <div>
+                  <h4 className="font-serif font-black text-sm text-zinc-100 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-amber-400" />
+                    Scriptural Reading Reminders
+                  </h4>
+                  <p className="text-[10px] text-zinc-500 font-mono mt-0.5">Stay regular with your daily devotional and study sessions</p>
+                </div>
+
+                {/* Notification Permission Request */}
+                <button
+                  id="btn-request-push"
+                  onClick={() => {
+                    if (!("Notification" in window)) {
+                      alert("Web notifications are not supported by your current browser.");
+                      return;
+                    }
+                    Notification.requestPermission().then(permission => {
+                      if (permission === "granted") {
+                        alert("Grace and peace! Push notifications are successfully enabled.");
+                      } else {
+                        alert("Notifications were disabled. Reminders will fallback to in-app toasts.");
+                      }
+                      // Force update
+                      setReminders(prev => [...prev]);
+                    });
+                  }}
+                  className="px-3 py-1 bg-zinc-950 hover:bg-zinc-850 border border-zinc-850 hover:border-zinc-800 text-[10px] uppercase tracking-wider text-amber-300 font-mono rounded-lg transition-all"
+                >
+                  {typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted" 
+                    ? "✓ Push Notification Permitted" 
+                    : "⚡ Setup Push Notifications"}
+                </button>
+              </div>
+
+              {/* Add New Reminder form */}
+              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-850 space-y-3">
+                <h5 className="font-semibold text-xs text-zinc-300">Set Up a New Bible Study Reminder</h5>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-mono tracking-wider text-zinc-500 mb-1">Select Study Plan</label>
+                    <select
+                      id="rem-plan-select"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-350 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="Daily Bread: Gospel of John Journey">Daily Bread: Gospel of John</option>
+                      <option value="Overcoming Anxiety & Finding Divine Peace">Overcoming Anxiety & Peace</option>
+                      <option value="The Wisdom Plan: Psalms & Proverbs Walk">Wisdom: Psalms & Proverbs</option>
+                      <option value="Unshakeable Faith Study (Romans & Hebrews)">Unshakeable Faith Study</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-mono tracking-wider text-zinc-500 mb-1">Reminder Time</label>
+                    <input
+                      id="rem-time-input"
+                      type="time"
+                      defaultValue="08:00"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-1.5 text-xs text-zinc-350 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-mono tracking-wider text-zinc-500 mb-1">Delivery System</label>
+                    <select
+                      id="rem-method-select"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-350 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="toast">Grace In-App Toasts</option>
+                      <option value="push">System Native Push Notifications</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  id="btn-add-reminder"
+                  onClick={() => {
+                    const planSelect = document.getElementById("rem-plan-select") as HTMLSelectElement;
+                    const timeInput = document.getElementById("rem-time-input") as HTMLInputElement;
+                    const methodSelect = document.getElementById("rem-method-select") as HTMLSelectElement;
+                    if (!planSelect || !timeInput) return;
+
+                    const newRem: BibleReminder = {
+                      id: "rem-" + Date.now(),
+                      planName: planSelect.value,
+                      time: timeInput.value,
+                      isActive: true,
+                      method: methodSelect.value as "toast" | "push"
+                    };
+
+                    setReminders(prev => [...prev, newRem]);
+                    alert(`Worship study plan reminder successfully scheduled for ${timeInput.value}!`);
+                  }}
+                  className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-zinc-950 font-bold font-mono text-xs rounded-lg transition-all active:scale-95"
+                >
+                  Confirm Study Reminder
+                </button>
+              </div>
+
+              {/* List of active reminders */}
+              {reminders.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {reminders.map(rem => (
+                    <div key={rem.id} className={`p-3 bg-zinc-950/80 rounded-xl border flex items-center justify-between gap-3 ${rem.isActive ? 'border-amber-500/20' : 'border-zinc-850 opacity-60'}`}>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span className="font-mono text-xs font-bold text-zinc-200">{rem.time}</span>
+                          <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">
+                            {rem.method === "push" ? "Push Alert" : "In-App Toast"}
+                          </span>
+                        </div>
+                        <h5 className="font-serif text-xs font-semibold text-zinc-300 truncate">{rem.planName}</h5>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => {
+                            setReminders(prev => prev.map(r => r.id === rem.id ? { ...r, isActive: !r.isActive } : r));
+                          }}
+                          className={`p-1.5 rounded-lg border transition ${
+                            rem.isActive 
+                              ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30" 
+                              : "bg-zinc-900 hover:bg-zinc-850 text-zinc-500 border-zinc-800"
+                          }`}
+                          title={rem.isActive ? "Deactivate Reminder" : "Activate Reminder"}
+                        >
+                          {rem.isActive ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setReminders(prev => prev.filter(r => r.id !== rem.id));
+                          }}
+                          className="p-1.5 rounded-lg border border-zinc-850 bg-zinc-900 hover:border-rose-500/30 hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition"
+                          title="Delete Reminder"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-zinc-500 text-center italic py-4 bg-zinc-950/20 rounded-xl font-sans">No study remind trackers set yet. Configure one above to hold yourself accountable.</p>
+              )}
+
+              {/* Predefined devotional plans grid to quickly register */}
+              <div className="space-y-2 mt-4 pt-2 border-t border-zinc-800/40">
+                <h5 className="font-semibold font-mono text-[10px] uppercase tracking-wider text-zinc-400">Discover Grace Study Plans</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {[
+                    { id: "p1", name: "Daily Bread: Gospel of John Journey", duration: "15 Days", description: "A beautifully profound study of Christ's character, divinity, and standard love promises." },
+                    { id: "p2", name: "Overcoming Anxiety & Finding Divine Peace", duration: "7 Days", description: "Daily scripture passages and prayers to anchor your soul in perfect peace." },
+                    { id: "p3", name: "The Wisdom Plan: Psalms & Proverbs Walk", duration: "30 Days", description: "Develop holy habits of daily praise and sharp heavenly wisdom." },
+                    { id: "p4", name: "Unshakeable Faith Study (Romans & Hebrews)", duration: "10 Days", description: "Deepen your theology of confidence in what we hope for and do not see." }
+                  ].map(plan => {
+                    const isAlreadyReminder = reminders.some(r => r.planName === plan.name);
+                    return (
+                      <div key={plan.id} className="p-3 bg-zinc-950/40 border border-zinc-850 rounded-xl hover:border-zinc-800/80 transition flex flex-col justify-between space-y-2.5">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] uppercase font-mono font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">{plan.duration}</span>
+                          </div>
+                          <h6 className="font-serif font-black text-[11px] md:text-xs text-zinc-250">{plan.name}</h6>
+                          <p className="text-[10px] text-zinc-500 leading-relaxed font-sans">{plan.description}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (isAlreadyReminder) {
+                              alert("You are already subscribed with a scheduled reminder for this plan!");
+                              return;
+                            }
+                            const newRem: BibleReminder = {
+                              id: "rem-" + Date.now(),
+                              planName: plan.name,
+                              time: "07:30",
+                              isActive: true,
+                              method: "toast"
+                            };
+                            setReminders(prev => [...prev, newRem]);
+                            alert(`Subscribed! Scheduled a study reminder at 07:30 for "${plan.name}"!`);
+                          }}
+                          disabled={isAlreadyReminder}
+                          className={`w-full py-1 text-[10px] font-bold font-mono rounded transition-colors ${
+                            isAlreadyReminder 
+                              ? "bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-default" 
+                              : "bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-555/20 cursor-pointer"
+                          }`}
+                        >
+                          {isAlreadyReminder ? "✓ Reading Account Synced" : "Subscribe to reading study Plan"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1717,6 +1997,40 @@ export default function App() {
           </button>
         </div>
       </nav>
+
+      {/* Real-time Scripture Reminder Floating Toast Notification */}
+      {activeToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-[9999] cursor-default select-none animate-bounce">
+          <div className="bg-zinc-950/95 border-2 border-amber-500 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex gap-3.5 relative overflow-hidden ring-4 ring-amber-500/10">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0 flex items-center justify-center">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+              <h4 className="font-serif font-black text-amber-400 text-xs md:text-sm">{activeToast.title}</h4>
+              <p className="text-[11px] md:text-xs text-zinc-200 leading-normal">{activeToast.message}</p>
+              {activeToast.planName && (
+                <button
+                  onClick={() => {
+                    setCurrentPage("bible");
+                    setActiveToast(null);
+                  }}
+                  className="text-[9px] uppercase tracking-wider font-bold text-emerald-400 hover:text-emerald-300 font-mono mt-1 w-auto inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Open Bible Devotionals</span>
+                  <span>→</span>
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setActiveToast(null)}
+              className="absolute top-2.5 right-2.5 p-1 rounded-lg hover:bg-zinc-900 text-zinc-500 hover:text-zinc-250 transition cursor-pointer text-xs"
+              title="Dismiss reminder"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
