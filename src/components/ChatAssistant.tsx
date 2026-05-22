@@ -236,12 +236,12 @@ export const ChatAssistant: React.FC = () => {
                 {formatMsg(m.content)}
               </div>
 
-              {m.isWarning && (
-                <div className="mt-2 pt-2 border-t border-zinc-800 text-[10px] text-amber-400/80 flex items-center gap-1">
-                  <Compass className="w-3 h-3" />
-                  Devotional offline wisdom mode active.
-                </div>
-              )}
+              
+                
+                  
+                  
+                
+              
             </div>
             <span className="text-[9px] text-zinc-500 mt-1 uppercase tracking-wider font-mono px-1">
               {m.role === "user" ? "You" : "BreadOfLifeAI"}
