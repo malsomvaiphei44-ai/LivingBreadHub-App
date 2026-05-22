@@ -27,15 +27,67 @@ export const ChatAssistant: React.FC = () => {
   ];
 
   const handleSendMessage = async (textToSend: string) => {
-    if (!textToSend.trim() || chatLoading) return;
+  if (!textToSend.trim() || chatLoading) return;
 
-    const userMsg = textToSend.trim();
-    setInput("");
+  const userMsg = textToSend.trim();
+  setInput("");
+
+  const updatedMessages = [
+    ...messages,
+    { role: "user" as const, content: userMsg },
+  ];
+
+  setMessages(updatedMessages);
+  setChatLoading(true);
+
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: updatedMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Chat response failed");
+    }
+
+    const data = await response.json();
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "model",
+        content: data.reply,
+        isWarning: !!data.warning,
+      },
+    ]);
+  } catch (error) {
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "model",
+        content: "I am currently unable to respond. Please try again later.",
+        isWarning: true,
+      },
+    ]);
+  } finally {
+    setChatLoading(false);
+  }
+};
     
-    // Append user message
-    const updatedMessages = [...messages, { role: "user" as const, content: userMsg }];
-    setMessages(updatedMessages);
-    setChatLoading(true);
+
+    
+  
+    
+    
+    
+    
+    
 
      
   
@@ -58,31 +110,31 @@ export const ChatAssistant: React.FC = () => {
       
     
 
-  const response = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: updatedMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-    }),
-  });
+  
+    
+    
+    
+      
+        
+        
+      
+    
 
-  if (!response.ok) {
-    throw new Error("Chat response failed");
-  }const data = await response.json();
+
+  
+    
+  
 
   
 
-  setMessages((prev) => [
-    ...prev,
-    {
-      role: "model",
-      content: data.reply,
-      isWarning: !!data.warning,
-    },
-  ]);
+  
+    
+    
+    
+      
+    
+  
+  
 
   
     
@@ -112,17 +164,17 @@ export const ChatAssistant: React.FC = () => {
       
     
   
-      setMessages(prev => [
-        ...prev,
-        {
-          role: "model",
-          content: "I am currently reflecting quietly on the Word. In moments of heavy burdens, remember: 'Cast your cares on the Lord and He will sustain you.' (Psalm 55:22). Rest in His presence."
-        }
-      ]);
+  
+      
+        
+      
+          
+      
+      
     
       
   
-  };
+  
 
   // Split message to format **bold** words nicely
   const formatMsg = (txt: string) => {
